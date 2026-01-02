@@ -1,50 +1,40 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# Microservices API Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Single Responsibility
+Each microservice must own one bounded context or business capability. Services must be independently deployable and maintainable. No shared databases between services.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. API Contract
+All services expose RESTful HTTP APIs with OpenAPI/Swagger documentation. Request/response must use JSON format. Versioning required in URL path (e.g., /v1/resource).
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Error Handling
+Standardized error responses with HTTP status codes (2xx, 4xx, 5xx). Error payload must include: error code, message, timestamp. No sensitive data in error messages.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Health & Readiness
+All services must implement /health (liveness) and /ready (readiness) endpoints. Return 200 OK when healthy/ready, 503 otherwise. Include basic service metadata in response.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Observability
+Structured logging required (JSON format). Each request must have unique correlation ID propagated across services. Metrics for response time, error rate, and request count mandatory.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Security Requirements
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### Authentication & Authorization
+API authentication required (API keys, JWT, or OAuth2). Authorization checks at service boundaries. No business logic bypass through direct database access.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### Data Protection
+Sensitive data encrypted in transit (HTTPS/TLS). Input validation on all endpoints. Protection against common vulnerabilities (SQL injection, XSS, CSRF).
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+## Communication Standards
+
+### Service-to-Service
+Synchronous: REST over HTTP/HTTPS. Asynchronous: Message queues or event streams when eventual consistency acceptable. Circuit breaker pattern for external service calls.
+
+### Data Contracts
+Schema validation for all API requests/responses. Breaking changes require new API version. Backward compatibility maintained for at least one prior version.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+All services must comply with these principles before deployment. Constitution amendments require team approval. Each service maintains its own repository with clear ownership.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2025-12-19 | **Last Amended**: 2025-12-19

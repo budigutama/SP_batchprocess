@@ -1,0 +1,994 @@
+openapi: 3.0.3
+info:
+  title: PRKS (Pembiayaan Rekening Koran Syariah) API
+  description: |
+    RESTful API for managing Islamic working capital financing facilities (PRKS) based on Musyarakah contract.
+    Provides automated integration between customer giro accounts and financing facilities with profit-sharing calculations.
+  version: 1.0.0
+  contact:
+    name: Bank BJB Syariah API Team
+    email: api-support@bjbsyariah.co.id
+
+servers:
+  - url: https://api.bjbsyariah.co.id/prks/v1
+    description: Production server
+  - url: https://api-staging.bjbsyariah.co.id/prks/v1
+    description: Staging server
+  - url: http://localhost:8080/prks/v1
+    description: Local development
+
+tags:
+  - name: Facilities
+    description: PRKS facility management operations
+  - name: Transactions
+    description: Transaction history and queries
+  - name: Profit Sharing
+    description: Profit-sharing calculations and declarations
+  - name: Reports
+    description: Reporting and analytics
+  - name: Health
+    description: Service health and readiness checks
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+paths:
+  # ==================== Health Endpoints ====================
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      description: Check if service is alive and running
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      description: Check if service is ready to accept requests (database, cache, dependencies available)
+      operationId: readinessCheck
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==================== Facility Management ====================
+  /facilities:
+    post:
+      tags:
+        - Facilities
+      summary: Create new PRKS facility
+      description: Set up a new PRKS financing facility for an approved customer
+      operationId: createFacility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFacilityRequest'
+      responses:
+        '201':
+          description: Facility created successfully
+          headers:
+            Location:
+              description: URL of the created facility
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Conflict - facility already exists or giro account already linked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      tags:
+        - Facilities
+      summary: List PRKS facilities
+      description: Retrieve list of facilities with optional filtering
+      operationId: listFacilities
+      parameters:
+        - name: customerId
+          in: query
+          description: Filter by customer ID
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by facility status
+          schema:
+            type: string
+            enum: [ACTIVE, EXPIRED, FROZEN, CLOSED]
+        - name: page
+          in: query
+          description: Page number (0-based)
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          description: Page size
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: sort
+          in: query
+          description: Sort field and direction (e.g., "createdAt,desc")
+          schema:
+            type: string
+            default: "createdAt,desc"
+      responses:
+        '200':
+          description: List of facilities
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /facilities/{facilityNumber}:
+    get:
+      tags:
+        - Facilities
+      summary: Get facility details
+      description: Retrieve detailed information about a specific PRKS facility
+      operationId: getFacility
+      parameters:
+        - $ref: '#/components/parameters/FacilityNumber'
+      responses:
+        '200':
+          description: Facility details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      tags:
+        - Facilities
+      summary: Update facility parameters
+      description: Update facility limit, rate, or status (requires admin authorization)
+      operationId: updateFacility
+      parameters:
+        - $ref: '#/components/parameters/FacilityNumber'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFacilityRequest'
+      responses:
+        '200':
+          description: Facility updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict - optimistic locking version mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /facilities/{facilityNumber}/utilization:
+    get:
+      tags:
+        - Facilities
+      summary: Get facility utilization
+      description: Get real-time utilization metrics for a facility
+      operationId: getFacilityUtilization
+      parameters:
+        - $ref: '#/components/parameters/FacilityNumber'
+      responses:
+        '200':
+          description: Facility utilization metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilizationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==================== Transaction Operations ====================
+  /transactions:
+    get:
+      tags:
+        - Transactions
+      summary: List transactions
+      description: Retrieve transaction history with filtering
+      operationId: listTransactions
+      parameters:
+        - name: facilityNumber
+          in: query
+          description: Filter by facility number
+          required: false
+          schema:
+            type: string
+        - name: transactionType
+          in: query
+          description: Filter by transaction type
+          schema:
+            type: string
+            enum: [WITHDRAWAL, REPAYMENT, PROFIT_DEDUCTION]
+        - name: startDate
+          in: query
+          description: Filter transactions from this date (ISO 8601)
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: Filter transactions until this date (ISO 8601)
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /transactions/{transactionId}:
+    get:
+      tags:
+        - Transactions
+      summary: Get transaction details
+      description: Retrieve detailed information about a specific transaction
+      operationId: getTransaction
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          description: Transaction identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==================== Internal API (Service-to-Service) ====================
+  /internal/transactions/process-withdrawal:
+    post:
+      tags:
+        - Transactions
+      summary: Process withdrawal (Internal API)
+      description: |
+        Internal API called by giro service when customer payment exceeds giro balance.
+        Automatically withdraws from PRKS facility if available limit exists.
+      operationId: processWithdrawal
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawalRequest'
+      responses:
+        '200':
+          description: Withdrawal processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Insufficient PRKS limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                errorCode: INSUFFICIENT_LIMIT
+                message: "Insufficient PRKS facility limit. Available: 5000000.00 IDR. Required: 10000000.00 IDR"
+                timestamp: "2025-12-19T10:30:00Z"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /internal/transactions/process-repayment:
+    post:
+      tags:
+        - Transactions
+      summary: Process repayment (Internal API)
+      description: |
+        Internal API called by giro service when deposit is made to linked giro account.
+        Automatically reduces PRKS outstanding balance.
+      operationId: processRepayment
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepaymentRequest'
+      responses:
+        '200':
+          description: Repayment processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ==================== Profit Sharing ====================
+  /profit-sharing/daily:
+    get:
+      tags:
+        - Profit Sharing
+      summary: Get daily profit-sharing records
+      description: Retrieve daily profit-sharing calculation records
+      operationId: getDailyProfitSharing
+      parameters:
+        - name: facilityNumber
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Daily profit-sharing records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyProfitListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /profit-sharing/monthly-declarations:
+    get:
+      tags:
+        - Profit Sharing
+      summary: Get monthly declarations
+      description: Retrieve monthly profit-sharing declaration records
+      operationId: getMonthlyDeclarations
+      parameters:
+        - name: facilityNumber
+          in: query
+          schema:
+            type: string
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: Monthly declaration records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyDeclarationListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /profit-sharing/monthly-declarations/{declarationId}:
+    get:
+      tags:
+        - Profit Sharing
+      summary: Get declaration details
+      description: Retrieve detailed information about a monthly declaration
+      operationId: getDeclarationDetails
+      parameters:
+        - name: declarationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Declaration details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyDeclarationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+# ==================== Components ====================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authenticated users (bank officers)
+
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for service-to-service communication
+
+  parameters:
+    FacilityNumber:
+      name: facilityNumber
+      in: path
+      required: true
+      description: Unique facility number (format PRKS-YYYYMMDD-NNNN)
+      schema:
+        type: string
+        pattern: '^PRKS-\d{8}-\d{4}$'
+      example: "PRKS-20251219-0001"
+
+  schemas:
+    # ==================== Request Schemas ====================
+    CreateFacilityRequest:
+      type: object
+      required:
+        - customerId
+        - giroAccountNumber
+        - facilityLimit
+        - profitSharingRate
+        - startDate
+        - endDate
+      properties:
+        customerId:
+          type: string
+          description: Customer identifier from core banking
+          example: "CUST-12345"
+        giroAccountNumber:
+          type: string
+          description: Linked giro account number
+          pattern: '^\d{10,20}$'
+          example: "1234567890"
+        facilityLimit:
+          type: number
+          format: decimal
+          description: Maximum credit limit in IDR
+          minimum: 1
+          example: 500000000.00
+        profitSharingRate:
+          type: number
+          format: decimal
+          description: Annual profit-sharing rate (percentage)
+          minimum: 0
+          maximum: 100
+          example: 12.50
+        startDate:
+          type: string
+          format: date
+          description: Facility activation date
+          example: "2025-01-01"
+        endDate:
+          type: string
+          format: date
+          description: Facility expiration date
+          example: "2025-12-31"
+
+    UpdateFacilityRequest:
+      type: object
+      properties:
+        facilityLimit:
+          type: number
+          format: decimal
+          minimum: 1
+        profitSharingRate:
+          type: number
+          format: decimal
+          minimum: 0
+          maximum: 100
+        endDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ACTIVE, FROZEN, CLOSED]
+        version:
+          type: integer
+          format: int64
+          description: Optimistic locking version
+
+    WithdrawalRequest:
+      type: object
+      required:
+        - giroAccountNumber
+        - amount
+        - giroTransactionRef
+        - correlationId
+      properties:
+        giroAccountNumber:
+          type: string
+          pattern: '^\d{10,20}$'
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          description: Amount to withdraw from PRKS
+        giroTransactionRef:
+          type: string
+          description: Reference to giro transaction
+        correlationId:
+          type: string
+          description: Request correlation ID for tracing
+          format: uuid
+
+    RepaymentRequest:
+      type: object
+      required:
+        - giroAccountNumber
+        - amount
+        - giroTransactionRef
+        - correlationId
+      properties:
+        giroAccountNumber:
+          type: string
+          pattern: '^\d{10,20}$'
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          description: Deposit amount to reduce PRKS outstanding
+        giroTransactionRef:
+          type: string
+        correlationId:
+          type: string
+          format: uuid
+
+    # ==================== Response Schemas ====================
+    FacilityResponse:
+      type: object
+      properties:
+        facilityNumber:
+          type: string
+          example: "PRKS-20251219-0001"
+        customerId:
+          type: string
+        giroAccountNumber:
+          type: string
+        facilityLimit:
+          type: number
+          format: decimal
+        profitSharingRate:
+          type: number
+          format: decimal
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        currentOutstanding:
+          type: number
+          format: decimal
+        availableLimit:
+          type: number
+          format: decimal
+        status:
+          type: string
+          enum: [ACTIVE, EXPIRED, FROZEN, CLOSED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FacilityListResponse:
+      type: object
+      properties:
+        facilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacilityResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    UtilizationResponse:
+      type: object
+      properties:
+        facilityNumber:
+          type: string
+        facilityLimit:
+          type: number
+          format: decimal
+        currentOutstanding:
+          type: number
+          format: decimal
+        availableLimit:
+          type: number
+          format: decimal
+        utilizationPercentage:
+          type: number
+          format: decimal
+          description: Percentage of facility used (0-100)
+        status:
+          type: string
+
+    TransactionResponse:
+      type: object
+      properties:
+        transactionId:
+          type: string
+        facilityNumber:
+          type: string
+        transactionType:
+          type: string
+          enum: [WITHDRAWAL, REPAYMENT, PROFIT_DEDUCTION]
+        amount:
+          type: number
+          format: decimal
+        transactionTimestamp:
+          type: string
+          format: date-time
+        giroAccountNumber:
+          type: string
+        giroTransactionRef:
+          type: string
+        balanceBefore:
+          type: number
+          format: decimal
+        balanceAfter:
+          type: number
+          format: decimal
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, FAILED, REVERSED]
+        correlationId:
+          type: string
+
+    TransactionListResponse:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    DailyProfitResponse:
+      type: object
+      properties:
+        facilityNumber:
+          type: string
+        calculationDate:
+          type: string
+          format: date
+        openingOutstanding:
+          type: number
+          format: decimal
+        closingOutstanding:
+          type: number
+          format: decimal
+        weightedAvgOutstanding:
+          type: number
+          format: decimal
+        profitSharingRate:
+          type: number
+          format: decimal
+        dailyProfitAmount:
+          type: number
+          format: decimal
+        accumulatedMonthlyTotal:
+          type: number
+          format: decimal
+
+    DailyProfitListResponse:
+      type: object
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyProfitResponse'
+        summary:
+          type: object
+          properties:
+            totalDailyProfit:
+              type: number
+              format: decimal
+            averageOutstanding:
+              type: number
+              format: decimal
+
+    MonthlyDeclarationResponse:
+      type: object
+      properties:
+        declarationId:
+          type: string
+        facilityNumber:
+          type: string
+        declarationMonth:
+          type: integer
+        declarationYear:
+          type: integer
+        totalProfitAmount:
+          type: number
+          format: decimal
+        giroBalanceAtDeclaration:
+          type: number
+          format: decimal
+        amountDeductedFromGiro:
+          type: number
+          format: decimal
+        amountAddedToOutstanding:
+          type: number
+          format: decimal
+        deductionStatus:
+          type: string
+          enum: [FULLY_DEDUCTED, PARTIALLY_DEDUCTED, ADDED_TO_OUTSTANDING]
+        declarationDate:
+          type: string
+          format: date
+        processedAt:
+          type: string
+          format: date-time
+
+    MonthlyDeclarationListResponse:
+      type: object
+      properties:
+        declarations:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonthlyDeclarationResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    # ==================== Common Schemas ====================
+    PaginationMetadata:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number (0-based)
+        size:
+          type: integer
+          description: Page size
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of elements
+        totalPages:
+          type: integer
+          description: Total number of pages
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [UP, DOWN]
+        service:
+          type: string
+          example: "prks-service"
+        version:
+          type: string
+          example: "1.0.0"
+        uptime:
+          type: integer
+          format: int64
+          description: Service uptime in seconds
+
+    ReadinessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [READY, NOT_READY]
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [UP, DOWN]
+            cache:
+              type: string
+              enum: [UP, DOWN]
+            messaging:
+              type: string
+              enum: [UP, DOWN]
+
+    ErrorResponse:
+      type: object
+      required:
+        - errorCode
+        - message
+        - timestamp
+      properties:
+        errorCode:
+          type: string
+          description: Machine-readable error code
+          example: "INSUFFICIENT_LIMIT"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Insufficient PRKS facility limit"
+        timestamp:
+          type: string
+          format: date-time
+          description: When error occurred (ISO 8601)
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+  # ==================== Reusable Responses ====================
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorCode: "VALIDATION_ERROR"
+            message: "Invalid request parameters"
+            timestamp: "2025-12-19T10:30:00Z"
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorCode: "UNAUTHORIZED"
+            message: "Authentication required"
+            timestamp: "2025-12-19T10:30:00Z"
+
+    Forbidden:
+      description: Forbidden - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorCode: "FORBIDDEN"
+            message: "Insufficient permissions for this operation"
+            timestamp: "2025-12-19T10:30:00Z"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorCode: "NOT_FOUND"
+            message: "Facility not found"
+            timestamp: "2025-12-19T10:30:00Z"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            errorCode: "INTERNAL_ERROR"
+            message: "An unexpected error occurred"
+            timestamp: "2025-12-19T10:30:00Z"
